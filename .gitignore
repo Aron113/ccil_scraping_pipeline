@@ -1,0 +1,4 @@
+__pycache__
+.env
+ccl-scraping-vm_key.pem
+README_DEV.md
