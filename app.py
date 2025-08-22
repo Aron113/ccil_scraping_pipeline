@@ -4,17 +4,6 @@ import pandas as pd
 import plotly.graph_objs as go
 from data.utils.database_service import DatabaseService
 
-# Fetch data
-db = DatabaseService()
-df = pd.DataFrame(db.fetch_data("SELECT * FROM ccil_securities"))
-
-# Ensure download_timestamp column is in datetime format
-if 'download_timestamp' in df.columns:
-    df['download_timestamp'] = pd.to_datetime(df['download_timestamp'])
-
-# Dropdown options
-security_options = df['ismt_idnt'].unique() if 'ismt_idnt' in df.columns else []
-
 app = dash.Dash(__name__)
 app.title = "CCIL Securities Dashboard"
 
@@ -30,6 +19,7 @@ CARD_STYLE = {
     "marginBottom": "20px"
 }
 
+# Layout
 app.layout = html.Div([
     # Title
     html.H1(
@@ -47,8 +37,6 @@ app.layout = html.Div([
         html.Label("Select Security:", style={'fontWeight': 'bold'}),
         dcc.Dropdown(
             id='security-dropdown',
-            options=[{'label': sec, 'value': sec} for sec in security_options],
-            value=security_options[0] if len(security_options) > 0 else None,
             clearable=False,
             style={"width": "50%"}
         )
@@ -64,30 +52,48 @@ app.layout = html.Div([
     html.Div([
         dash_table.DataTable(
             id='data-table',
-            data=df.to_dict('records'),
-            columns=[{"name": i, "id": i} for i in df.columns],
             page_size=10,
             style_table={'overflowX': 'auto'},
             style_header={'backgroundColor': '#f8f9fa', 'fontWeight': 'bold'},
             style_cell={'padding': '8px', 'textAlign': 'left'},
             style_data={'border': '1px solid #ddd'}
         )
-    ], style={**CARD_STYLE, "width": "90%", "margin": "0 auto"})
+    ], style={**CARD_STYLE, "width": "90%", "margin": "0 auto"}),
+
+    # Interval for auto-refresh every 30 minutes
+    dcc.Interval(
+        id='interval-refresh',
+        interval=30*60*1000,  # 30 minutes in milliseconds
+        n_intervals=0
+    )
 ], style={"backgroundColor": "#f4f6f7", "padding": "20px"})
 
-# Callbacks
+# Callback to update everything
 @app.callback(
     [Output('ttc-chart', 'figure'),
      Output('tta-chart', 'figure'),
-     Output('data-table', 'data')],
-    [Input('security-dropdown', 'value')]
+     Output('data-table', 'data'),
+     Output('security-dropdown', 'options'),
+     Output('security-dropdown', 'value')],
+    [Input('security-dropdown', 'value'),
+     Input('interval-refresh', 'n_intervals')]
 )
-def update_dashboard(selected_security):
-    if not selected_security:
-        return go.Figure(), go.Figure(), []
-    filtered = df[df['ismt_idnt'] == selected_security]
-    if 'download_timestamp' in filtered.columns:
-        filtered = filtered.sort_values('download_timestamp')
+def update_dashboard(selected_security, n_intervals):
+    # Fetch fresh data
+    db = DatabaseService()
+    df = pd.DataFrame(db.fetch_data("SELECT * FROM ccil_securities"))
+    if 'download_timestamp' in df.columns:
+        df['download_timestamp'] = pd.to_datetime(df['download_timestamp'])
+
+    # Update dropdown options
+    security_options = df['ismt_idnt'].unique() if 'ismt_idnt' in df.columns else []
+    dropdown_value = selected_security if selected_security in security_options else (security_options[0] if len(security_options) > 0 else None)
+    dropdown_options = [{'label': sec, 'value': sec} for sec in security_options]
+
+    if not dropdown_value:
+        return go.Figure(), go.Figure(), [], dropdown_options, dropdown_value
+
+    filtered = df[df['ismt_idnt'] == dropdown_value].sort_values('download_timestamp')
 
     # TTC Chart
     ttc_fig = go.Figure()
@@ -100,7 +106,7 @@ def update_dashboard(selected_security):
             line=dict(color="#2980b9")
         ))
         ttc_fig.update_layout(
-            title=f"Trades (TTC) for <b>{selected_security}</b>",
+            title=f"Trades (TTC) for <b>{dropdown_value}</b>",
             xaxis_title="Date",
             yaxis_title="Trades",
             template="plotly_white"
@@ -117,13 +123,13 @@ def update_dashboard(selected_security):
             line=dict(color="#27ae60")
         ))
         tta_fig.update_layout(
-            title=f"TTA for <b>{selected_security}</b>",
+            title=f"TTA for <b>{dropdown_value}</b>",
             xaxis_title="Date",
             yaxis_title="TTA",
             template="plotly_white"
         )
 
-    return ttc_fig, tta_fig, filtered.sort_values('download_timestamp', ascending=False).to_dict('records')
+    return ttc_fig, tta_fig, filtered.sort_values('download_timestamp', ascending=False).to_dict('records'), dropdown_options, dropdown_value
 
 if __name__ == "__main__":
     app.run(debug=False, host="0.0.0.0", port=8000)
