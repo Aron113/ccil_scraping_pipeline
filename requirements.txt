@@ -7,4 +7,5 @@ dotenv
 dash
 plotly
 gunicorn
+pytest
 # ODBC driver for SQL Server: https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver17

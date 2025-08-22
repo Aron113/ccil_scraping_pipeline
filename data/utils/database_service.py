@@ -32,9 +32,7 @@ class DatabaseService:
         conn = self.connect()
         cursor = conn.cursor()
         # Check if table exists
-        cursor.execute("""
-            SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = ?
-        """, self.table_name)
+        cursor.execute("""SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = ?""", self.table_name)
         exists = cursor.fetchone()[0]
         if not exists:
             cursor.execute(f"""

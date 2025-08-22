@@ -10,3 +10,6 @@ Cronjob logs are stored under cron.log in the VM.
 
 ## Dashboard Link
 https://ccil-dashboard.azurewebsites.net/
+
+## Running tests
+1. In the root folder, run ```pytest -v```
